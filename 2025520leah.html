@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>520 Wordle for Leah</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f6f6f6;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .game-container {
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #ff6b88;
+            margin-bottom: 20px;
+            font-size: 2.2rem;
+        }
+
+        .board {
+            display: grid;
+            grid-template-rows: repeat(6, 1fr);
+            grid-gap: 5px;
+            margin: 20px 0;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            grid-gap: 5px;
+        }
+
+        .tile {
+            width: 100%;
+            aspect-ratio: 1/1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 2rem;
+            font-weight: bold;
+            border: 2px solid #d3d6da;
+            background-color: white;
+            text-transform: uppercase;
+            transition: transform 0.2s, background-color 0.3s;
+        }
+
+        .keyboard {
+            margin-top: 20px;
+        }
+
+        .keyboard-row {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 8px;
+        }
+
+        .key {
+            min-width: 40px;
+            height: 50px;
+            margin: 0 3px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border: none;
+            border-radius: 4px;
+            background-color: #d3d6da;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-transform: uppercase;
+            user-select: none;
+        }
+
+        .key.wide {
+            min-width: 60px;
+        }
+
+        .message {
+            margin: 10px 0;
+            font-size: 1.2rem;
+            color: #333;
+            min-height: 30px;
+        }
+
+        /* 字母状态 */
+        .tile.correct {
+            background-color: #ff6b88;
+            color: white;
+            border-color: #ff6b88;
+            transform: rotateX(360deg);
+        }
+
+        .tile.present {
+            background-color: #ffb6c1;
+            color: white;
+            border-color: #ffb6c1;
+            transform: rotateX(360deg);
+        }
+
+        .tile.absent {
+            background-color: #d3d6da;
+            color: white;
+            border-color: #d3d6da;
+            transform: rotateX(360deg);
+        }
+
+        /* 键盘键状态 */
+        .key.correct {
+            background-color: #ff6b88;
+            color: white;
+        }
+
+        .key.present {
+            background-color: #ffb6c1;
+            color: white;
+        }
+
+        .key.absent {
+            background-color: #d3d6da;
+            color: white;
+        }
+
+        /* 诗句样式 */
+        .poem-container {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #fff0f5;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .poem-line {
+            line-height: 1.8;
+            font-family: 'Georgia', serif;
+            text-align: left;
+            margin-left: 20%;
+        }
+
+        .poem-line .highlight {
+            font-weight: bold;
+            color: #ff6b88;
+        }
+
+        .final-line {
+            font-style: italic;
+            margin-top: 10px;
+            color: #ff6b88;
+        }
+
+        @media (max-width: 500px) {
+            .tile {
+                font-size: 1.5rem;
+            }
+            .key {
+                min-width: 30px;
+                height: 45px;
+                font-size: 1rem;
+            }
+            .key.wide {
+                min-width: 50px;
+            }
+            .poem-line {
+                margin-left: 10%;
+            }
+            h1 {
+                font-size: 1.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>520 Wordle for Leah</h1>
+        <div class="board" id="board"></div>
+        <div class="keyboard" id="keyboard"></div>
+        <div class="message" id="message"></div>
+    </div>
+
+    <script>
+        // 游戏常量
+        const WORD_LENGTH = 5;
+        const MAX_ATTEMPTS = 6;
+
+        // 游戏状态
+        let currentGuess = '';
+        let guesses = [];
+        let correctWord = 'FABLE'; // 固定答案
+        let gameOver = false;
+
+        // DOM元素
+        const board = document.getElementById('board');
+        const keyboard = document.getElementById('keyboard');
+        const messageEl = document.getElementById('message');
+
+        // 初始化游戏
+        function initGame() {
+            // 清空游戏状态
+            currentGuess = '';
+            guesses = [];
+            gameOver = false;
+            messageEl.textContent = '';
+            messageEl.innerHTML = '';
+            
+            // 清空棋盘
+            board.innerHTML = '';
+            
+            // 创建棋盘行
+            for (let i = 0; i < MAX_ATTEMPTS; i++) {
+                const row = document.createElement('div');
+                row.className = 'row';
+                
+                for (let j = 0; j < WORD_LENGTH; j++) {
+                    const tile = document.createElement('div');
+                    tile.className = 'tile';
+                    row.appendChild(tile);
+                }
+                
+                board.appendChild(row);
+            }
+            
+            // 初始化键盘(去掉Enter和Backspace)
+            initKeyboard();
+            
+            console.log('正确答案:', correctWord); // 测试用
+        }
+
+        // 初始化键盘(简化版)
+        function initKeyboard() {
+            keyboard.innerHTML = '';
+            
+            const keyboardRows = [
+                ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
+                ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
+                ['Z', 'X', 'C', 'V', 'B', 'N', 'M']
+            ];
+            
+            keyboardRows.forEach(rowLetters => {
+                const row = document.createElement('div');
+                row.className = 'keyboard-row';
+                
+                rowLetters.forEach(letter => {
+                    const key = document.createElement('div');
+                    key.className = 'key';
+                    key.textContent = letter;
+                    key.addEventListener('click', () => handleKeyPress(letter));
+                    row.appendChild(key);
+                });
+                
+                keyboard.appendChild(row);
+            });
+        }
+
+        // 处理按键
+        function handleKeyPress(key) {
+            if (gameOver) return;
+            
+            if (currentGuess.length < WORD_LENGTH) {
+                addLetter(key);
+            }
+        }
+
+        // 添加字母
+        function addLetter(letter) {
+            currentGuess += letter;
+            updateBoard();
+            
+            // 自动提交完整单词
+            if (currentGuess.length === WORD_LENGTH) {
+                setTimeout(() => {
+                    submitGuess();
+                }, 300);
+            }
+        }
+
+        // 更新棋盘显示
+        function updateBoard() {
+            const currentRow = board.children[guesses.length];
+            
+            for (let i = 0; i < WORD_LENGTH; i++) {
+                const tile = currentRow.children[i];
+                tile.textContent = currentGuess[i] || '';
+            }
+        }
+
+        // 提交猜测
+        function submitGuess() {
+            if (currentGuess.length !== WORD_LENGTH) {
+                return;
+            }
+            
+            // 检查是否全是字母
+            if (!/^[A-Za-z]{5}$/.test(currentGuess)) {
+                return;
+            }
+            
+            guesses.push(currentGuess.toUpperCase());
+            
+            // 更新棋盘颜色
+            updateTileColors();
+            
+            // 检查是否获胜
+            if (currentGuess.toUpperCase() === correctWord) {
+                gameOver = true;
+                setTimeout(() => {
+                    showPoem();
+                }, 1500); // 1.5秒后显示诗句
+                return;
+            }
+            
+            // 检查是否用完尝试次数
+            if (guesses.length === MAX_ATTEMPTS) {
+                gameOver = true;
+                return;
+            }
+            
+            // 重置当前猜测
+            currentGuess = '';
+        }
+
+        // 显示诗句
+        function showPoem() {
+            messageEl.innerHTML = `
+                <div class="poem-container">
+                    <div class="poem-line"><span class="highlight">f</span>orest trails we've wandered, step by step,</div>
+                    <div class="poem-line"><span class="highlight">A</span>s our stories brew in shared morning cups,</div>
+                    <div class="poem-line"><span class="highlight">B</span>usy streets pause where paws print our path,</div>
+                    <div class="poem-line"><span class="highlight">L</span>aughing as we dance through kitchen's glow,</div>
+                    <div class="poem-line"><span class="highlight">E</span>very partner rep a promise strong and true -</div>
+                    <div class="final-line">five months of love stacked, day by day, with you.</div>
+                </div>
+            `;
+        }
+
+        // 更新瓷砖颜色
+        function updateTileColors() {
+            const currentRow = board.children[guesses.length - 1];
+            const guess = guesses[guesses.length - 1];
+            
+            // 创建答案字母的副本以便修改
+            let answerLetters = correctWord.split('');
+            
+            // 首先标记所有正确位置的字母
+            for (let i = 0; i < WORD_LENGTH; i++) {
+                const tile = currentRow.children[i];
+                const letter = guess[i];
+                
+                if (letter === answerLetters[i]) {
+                    tile.classList.add('correct');
+                    answerLetters[i] = null; // 标记为已处理
+                }
+            }
+            
+            // 然后标记存在但位置不对的字母
+            for (let i = 0; i < WORD_LENGTH; i++) {
+                const tile = currentRow.children[i];
+                
+                if (tile.classList.contains('correct')) continue;
+                
+                const letter = guess[i];
+                const indexInAnswer = answerLetters.indexOf(letter);
+                
+                if (indexInAnswer !== -1) {
+                    tile.classList.add('present');
+                    answerLetters[indexInAnswer] = null; // 标记为已处理
+                } else {
+                    tile.classList.add('absent');
+                }
+            }
+            
+            // 更新键盘颜色
+            updateKeyboardColors(guess);
+        }
+
+        // 更新键盘颜色
+        function updateKeyboardColors(guess) {
+            const keyboardKeys = document.querySelectorAll('.key');
+            
+            guess.split('').forEach((letter, i) => {
+                const key = Array.from(keyboardKeys).find(
+                    k => k.textContent === letter
+                );
+                
+                if (!key) return;
+                
+                const tileClass = document.querySelectorAll('.row')[guesses.length - 1]
+                    .children[i].className;
+                
+                if (tileClass.includes('correct') && !key.className.includes('correct')) {
+                    key.classList.add('correct');
+                } else if (tileClass.includes('present') && 
+                          !key.className.includes('present') && 
+                          !key.className.includes('correct')) {
+                    key.classList.add('present');
+                } else if (tileClass.includes('absent') && 
+                          !key.className.includes('absent') && 
+                          !key.className.includes('correct') && 
+                          !key.className.includes('present')) {
+                    key.classList.add('absent');
+                }
+            });
+        }
+
+        // 键盘事件监听
+        document.addEventListener('keydown', (e) => {
+            if (/^[a-zA-Z]$/.test(e.key)) {
+                handleKeyPress(e.key.toUpperCase());
+            }
+        });
+
+        // 初始化游戏
+        initGame();
+    </script>
+</body>
+</html>
